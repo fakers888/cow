@@ -32,7 +32,7 @@ class WeChatAccount(Base):
     city = Column(VARCHAR(45))
     token = Column(VARCHAR(300))
     auth = Column(VARCHAR(300))
-
+    account_type = Column(Integer, default=1)
     auth_account=Column(VARCHAR(300))
     auth_password = Column(VARCHAR(300))
     callback_url = Column(VARCHAR(150))
@@ -215,7 +215,6 @@ def insert_wechat_data(json_data, id):
 # # Drop all tables and recreate them
 # Base.metadata.drop_all(engine)
 # Base.metadata.create_all(engine)
-# Call the function with the path to your JSON file
 
 
 

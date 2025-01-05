@@ -7,7 +7,7 @@ import time
 from datetime import datetime
 from werkzeug.security import generate_password_hash, check_password_hash
 from models import db_session,Session_sql
-hashed_password = generate_password_hash('12345789', method='pbkdf2:sha256', salt_length=8)
+hashed_password = generate_password_hash('123456', method='pbkdf2:sha256', salt_length=8)
 from channel.wechat.iPadWx import iPadWx
 from config import load_config
 from sqlalchemy.exc import PendingRollbackError
@@ -77,6 +77,7 @@ def add_user(username, password, wx_id):
         try:
             # 尝试执行数据库操作
             db_session.commit()  # 提交事务
+            print("添加成功！")
         except Exception as e:
             db_session.rollback()  # 如果发生异常，回滚事务
             if isinstance(e, PendingRollbackError):
@@ -201,6 +202,6 @@ if __name__ == '__main__':
 
     username = 'admin'
     password = ""
-    province = "四川省"
-    city ="成都市"
+    province = "湖北省"
+    city ="武汉市"
     add_wechatuser(username,password,province,city)
