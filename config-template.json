@@ -63,12 +63,14 @@
   "xunfei_app_id": "",
   "xunfei_api_key": "",
   "xunfei_api_secret": "",
-  "base_url": " http://xxx/api",
+  "base_url": "",
   "auth_account": "",
   "auth_password": "",
 
-  "token": "bf782400-381b-xxx",
+  "token": "",
   "auth": "",
   "test":1,
-  "http_hook":""
+  "http_hook":"",
+  "AI_reply": true,
+  "reply_at": false
 }
