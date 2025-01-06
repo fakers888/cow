@@ -108,6 +108,7 @@ async def initialize_user():
 
         wxbot.auth = account.auth
         wxbot.token = account.token
+
         if not account.auth_account or not account.auth_password:
             return jsonify({'failed': '初始化失败！请先录入用户名，密码'})
 
@@ -128,6 +129,7 @@ async def initialize_user():
 
         config = conf()
         local_account = config.get("auth_account")
+        local_callback_url = config.get("http_hook")
         try:
             # 尝试执行数据库操作
             db_session.commit()  # 提交事务
@@ -137,6 +139,8 @@ async def initialize_user():
                 config.__setitem__("auth", auth)
                 config.__setitem__("auth_account", account.auth_account)
                 config.__setitem__("auth_password", account.auth_password)
+                if not local_callback_url:
+                    config.__setitem__("http_hook", account.callback_url)
                 save_config()
 
         except Exception as e:
