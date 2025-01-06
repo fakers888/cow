@@ -123,6 +123,9 @@ async def initialize_user():
         auth = data.get("auth")
         account.auth = auth
         account.token = token
+        wxbot.auth = auth
+        wxbot.token = token
+
         config = conf()
         local_account = config.get("auth_account")
         try:
@@ -146,6 +149,7 @@ async def initialize_user():
 
     result = wxbot.create_user(user_data)
     if result['code'] == 0:
+
 
         return jsonify({'status_code': 200, 'message': '初始化成功！'})
     else:
@@ -179,7 +183,7 @@ def get_qrcode_route(account_id):
             'is_wx_token': False
         })
     
-    return jsonify({'error': '获取登录二维码失败！如果非首次登录，不需要获取二维码，点击二次即可'})
+    return jsonify({'error': '获取登录二维码失败！如果非首次登录，不需要获取二维码，点击登录即可'})
 
 def check_wechat_status_beta(wxbot):
     """Check if WeChat is truly online for iPadWx_Beta"""
@@ -295,6 +299,8 @@ async def confirm_login():
 
         result = wxbot.confirm_login()
         if result and result.get('code') == 0:
+            wxbot.start_listen()
+            wxbot.filter_msg()
             return jsonify({'status_code': 200, 'message': 'Login successful'})
         else:
             return jsonify({'status_code': 500, 'message': 'Login failed'})
@@ -320,6 +326,7 @@ async def relogin():
         result = wxbot.relogin()
         if result['code']==0:
             logger.info("二次登录成功")
+
         logger.info(result)
         if result:
             if result['code'] == 0:
@@ -394,12 +401,17 @@ async def startlisten():
         reault = wxbot.start_listen()
         print(reault)
         wxbot.filter_msg()
-        if account.callback_url:
-            logger.info(f"callback_url:{account.callback_url}")
-            result = wxbot.set_callback_url(account.callback_url)
+        config = conf()
+        local_callback = config.get("http_hook")
+        callback_url = local_callback or account.callback_url
+
+
+        if callback_url:
+            logger.info(f"callback_url:{callback_url}")
+            result = wxbot.set_callback_url(callback_url)
             logger.info(result)
             if result and (result.get("code") == 0 or result.get("ret") == 0):
-                return jsonify({'status_code': 200, 'message': '开启群聊消息回调成功！'})
+                return jsonify({'status_code': 200, 'message': f'开启群聊消息回调成功,回调地址:{callback_url}'})
             else:
                 return jsonify({'status_code': 500, 'message': "开启失败，请检查回调地址是否正确！"})
         else:
