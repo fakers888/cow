@@ -11,15 +11,6 @@
 -  ✅   **图像能力：** 支持图片生成、图片识别、图生图（如照片修复），可选择 Dall-E-3, stable diffusion, replicate, midjourney, CogView-3, vision模型
 -  ✅   **丰富插件：** 支持个性化插件扩展，敏感词过滤、聊天记录总结、文档总结和对话、联网搜索，看图猜成语，KFC，早报，热榜等非常多的娱乐插件
 
-<p>
- <img src="docs/images/KFC.jpg" width="300px" height="500px" >
-</p>
-
-<p>
- <img src="docs/images/morning.jpg" width="300px" height="500px" >
-</p>
-
-
 ## 声明
 
 1. 本项目遵循 [MIT开源协议](/LICENSE)，仅用于技术研究和学习，使用本项目时需遵守所在地法律法规、相关政策以及企业章程，禁止用于任何违法或侵犯他人权益的行为
