@@ -27,9 +27,6 @@
 <p align="center">
   <img src="docs/images/contact.jpg" width="600px" height="800px" alt=" Logo">
 </p>
-<p align="center">
- 过期加个微:rongrong3938(人工拉), Cxiaoxin321(机器人自动拉群，发加群)
-</p>
 
 
 # 🚀 优点
