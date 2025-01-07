@@ -104,11 +104,11 @@
                         <input type="text" class="form-control" id="auth_password" name="auth_password" required>
                     </div>
                     <div class="mb-3">
-                        <label for="province" class="form-label">省份(用于扫码登录)</label>
+                        <label for="province" class="form-label">省份(用于扫码登录，例如广东省)</label>
                         <input type="text" class="form-control" id="province" name="province">
                     </div>
                     <div class="mb-3">
-                        <label for="city" class="form-label">城市(用于扫码登录)</label>
+                        <label for="city" class="form-label">城市(用于扫码登录，例如广州市，直辖市留空)</label>
                         <input type="text" class="form-control" id="city" name="city">
                     </div>
                     <div class="mb-3">
@@ -629,7 +629,7 @@ function handleManualLogin(accountId) {
                 title: '登录成功',
                 text: data.message,
                 icon: 'success',
-                confirmButtonText: '确���'
+                confirmButtonText: '确定'
             }).then(() => {
                 location.reload();
             });
