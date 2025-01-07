@@ -1,14 +1,28 @@
 {
-    "group_welc_fixed_msg": {
-      "群聊1": "群聊1的固定欢迎语",
-      "群聊2": "群聊2的固定欢迎语"
+    "单独进群提示": {
+        "value": [
+            "欢迎{nickname}加入群聊，请查看群公告，开通试用请找群主。",
+            "欢迎{nickname}加入群聊"
+        ],
+        "description": "单独设置每个群的欢迎语。"
     },
-
-  "group_welc_prompt": "请你随机使用一种风格说一句问候语来欢迎新用户\"{nickname}\"加入群聊。",
-
-  "group_exit_prompt": "请你随机使用一种风格跟其他群用户说他违反规则\"{nickname}\"退出群聊。",
-
-  "patpat_prompt": "请你随机使用一种风格介绍你自己，并告诉用户输入#help可以查看帮助信息。",
-
-  "use_character_desc": false
+    "群名称": {
+        "value": [
+            "Chatgpt-on-iPad",
+            "个人群"
+        ],
+        "description": "群名称，和欢迎语一一对应。"
+    },
+    "通用提示": {
+        "value": "欢迎{nickname}加入群聊，请自我介绍。",
+        "description": "进群欢迎群聊。"
+    },
+    "退群提示": {
+        "value": "{nickname}退出了群聊。",
+        "description": "退出群聊。"
+    },
+    "拍一拍": {
+        "value": "拍我就可以得到帮助，输入>+文字和我对话",
+        "description": "拍一拍回复内容"
+    }
 }

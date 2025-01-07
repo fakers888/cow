@@ -1,6 +1,44 @@
 {
-    "allowed_groups": [
-        "group_id_1",
-        "group_id_2"
-    ]
-} 
+    "monitor_groups": {
+        "value": [
+            "聊天测试群"
+        ],
+        "description": "监控群名称"
+    },
+     "private_switch": {
+        "value": false,
+        "description": "是否开启私聊防撤回"
+    },
+     "group_switch": {
+        "value": true,
+        "description": "是否开启群聊防撤回"
+    },
+    "forward_private": {
+        "value": [
+            ""
+        ],
+        "description": "私聊撤回后转发给谁"
+    },
+
+    "pre_text": {
+        "value": true,
+        "description": "防止撤回文字开关"
+    },
+    "pre_pic": {
+        "value": true,
+        "description": "防止撤回图片开关"
+    },
+
+    "pre_video": {
+        "value": true,
+        "description": "防止撤回视频开关"
+    },
+    "pre_voice": {
+        "value": true,
+        "description": "防止撤回语音开关"
+    },
+    "pre_file": {
+        "value": true,
+        "description": "防止撤回文件开关"
+    }
+}
