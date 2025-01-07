@@ -26,52 +26,69 @@ class iPadWx:
     function_called = False
     def __init__(self):
         config = conf()
-
-
         self.base_url = config.get('base_url')
         self.auth_account = config.get('auth_account')
         self.auth_password = config.get('auth_password')
         self.token = config.get('token')
         self.auth = config.get('auth')
+        self.wx_id = config.get('wx_id', '')  # 从配置加载wx_id
 
-        self.is_auth = config.get_user_data('is_auth')
-        self.is_create =config.get_user_data('is_create')
-        self.is_login = config.get_user_data('is_login')
-        self.is_first_login = config.get_user_data('is_first_login')
+        # 检查基本认证信息
+        if (not self.token or not self.auth):
+            self.is_login = False
+            return
+    
+        # 如果有wx_id，尝试加载联系人文件
+        if self.wx_id and not iPadWx.function_called:
+            contact_file = f"contact_ipad_{self.wx_id}.json"
+            if os.path.exists(contact_file):
+                try:
+                    with open(contact_file, 'r', encoding='utf-8') as f:
+                        contact_data = json.load(f)
+                        if contact_data:  # 确保文件不为空
+                            iPadWx.shared_wx_contact_list = contact_data
+                            logger.info(f"成功从{contact_file}加载联系人数据")
+                            iPadWx.function_called = True
+                        else:
+                            logger.warning(f"联系人文件{contact_file}为空")
+                except json.JSONDecodeError:
+                    logger.error(f"联系人文件{contact_file}格式错误")
+                except Exception as e:
+                    logger.error(f"加载联系人文件{contact_file}失败: {str(e)}")
+            else:
+                logger.info(f"联系人文件{contact_file}不存在，等待登录后重新获取")
+    
+        self.is_login = True
 
 
-
-
-        # Try to load auth info from config
-        if (not self.token or not self.auth) and self.is_login==1:
-            if self.is_login==1:
-                #todo 已经登录过再掉线，需要二次登录
-                #self.relogin()
-                print("微信已登录，不用重复登录")
-            else: #没有登录过，需要扫码登录
-                ret,data = self.login()
-                if ret:
-                    self.token = data.get("token")
-                    self.auth = data.get("auth")
-                    config.__setitem__("token", self.token)
-                    config.__setitem__("auth", self.auth)
-                    save_config()
-                    config.user_datas.__setitem__("is_login",1)
-                else:
-                    pass
-        if not iPadWx.function_called:
-            self.load_contact()
-            self.save_contact_xls()
-            iPadWx.function_called = True
-
+    def confirm_login(self):
+        response = self.call_api("POST", "user/check")
+        if response and response['code'] == 0:
+            bot_info = self.get_robot_info()
+            if bot_info and bot_info['code'] == 0:
+                new_wx_id = bot_info['data']['id']
+                if new_wx_id != self.wx_id:
+                    self.wx_id = new_wx_id
+                    config = conf()
+                    config.set('wx_id', self.wx_id)
+                    save_config(config)
+                
+                if not iPadWx.function_called:
+                    self.load_contact()
+                    self.save_contact_xls()
+                    iPadWx.function_called = True
+                
+        return response
 
     def load_contact(self):
-        if os.path.exists(f"contact_ipad.json"):
-            iPadWx.shared_wx_contact_list = json.load(open(f"contact_ipad.json",'r',encoding='utf-8'))
+        contact_file = f"contact_ipad_{self.wx_id}.json"
+        if os.path.exists(contact_file):
+            iPadWx.shared_wx_contact_list = json.load(open(contact_file, 'r', encoding='utf-8'))
             logger.info(f"读取联系人!")
-
-        else:
             room_list = self.get_room_list()
+            logger.info(f"读取群信息!{room_list}")
+        else:
+            room_list = self.get_device_room_list()
             if room_list['code']==0:
                 for room_id in room_list['data']:
                     if not room_id.endswith('@chatroom'):
@@ -86,54 +103,112 @@ class iPadWx:
 
                                 room_info['data']['chatRoomMembers'] = members_info['data']
 
-            # contacts = self.get_contact_list(0, 0)
-            # if contacts['code'] == 0:
-            #     current_wx_contact_seq = contacts['data']['current_wx_contact_seq']
-            #     current_chat_room_contact_seq = contacts['data']['current_chat_room_contact_seq']
-            #     wxids=[]
-            #     while contacts['data']['ids']:
-            #         for contact in contacts['data']['ids']:
-            #             if contact not in ['weixin', 'fmessage', 'medianote', 'floatbottle',"filehelper","facesun"] \
-            #                     and not contact.startswith("gh_") and not contact.endswith(
-            #                 "@chatroom") :
-            #                 wxids.append(contact)
-            #         time.sleep(1)
-            #         contacts = self.get_contact_list(current_wx_contact_seq, current_chat_room_contact_seq)
-            #         current_wx_contact_seq = contacts['data']['current_wx_contact_seq']
-            #         current_chat_room_contact_seq = contacts['data']['current_chat_room_contact_seq']
-            #
-            #     for i in range(0,len(wxids)//10 + 1):
-            #         wxids_temp = wxids[i * 10:i * 10 + 10]
-            #         wx_ids = ",".join(wxids_temp)
-            #         time.sleep(2)
-            #         contact_info = self.get_contact_info(wx_ids)
-            #         for contact in contact_info['data']:
-            #             iPadWx.shared_wx_contact_list[contact['userName']] = contact
-            #
-            #
-            #     # for wxid in wxids:
-            #     #
-            #     #     #iPadWx.get_contact_info(wxids)
-            #     #     iPadWx.shared_wx_contact_list[wxid] = iPadWx.shared_wx_contact_list.get(wxid, {})
-            #
-            #
-            #
-            #
-            #     #iPadWx.shared_wx_contact_list.update(contacts['data'])
-            #     #self.save_contact()
+            contacts = self.get_contact_list(0, 0)
+            if contacts['code'] == 0:
+                current_wx_contact_seq = contacts['data']['current_wx_contact_seq']
+                current_chat_room_contact_seq = contacts['data']['current_chat_room_contact_seq']
+                wxids=[]
+                while contacts['data']['ids']:
+                    for contact in contacts['data']['ids']:
+                        if contact not in ['weixin', 'fmessage', 'medianote', 'floatbottle',"filehelper","facesun"] \
+                                and not contact.startswith("gh_") and not contact.endswith(
+                            "@chatroom") :
+                            wxids.append(contact)
+                    time.sleep(1)
+                    contacts = self.get_contact_list(current_wx_contact_seq, current_chat_room_contact_seq)
+                    current_wx_contact_seq = contacts['data']['current_wx_contact_seq']
+                    current_chat_room_contact_seq = contacts['data']['current_chat_room_contact_seq']
+
+                for i in range(0,len(wxids)//10 + 1):
+                    wxids_temp = wxids[i * 10:i * 10 + 10]
+                    wx_ids = ",".join(wxids_temp)
+                    time.sleep(2)
+                    contact_info = self.get_contact_info(wx_ids)
+                    for contact in contact_info['data']:
+                        iPadWx.shared_wx_contact_list[contact['userName']] = contact
+
+
+                # for wxid in wxids:
+                #
+                #     #iPadWx.get_contact_info(wxids)
+                #     iPadWx.shared_wx_contact_list[wxid] = iPadWx.shared_wx_contact_list.get(wxid, {})
+
+
+
+
+                #iPadWx.shared_wx_contact_list.update(contacts['data'])
+                #self.save_contact()
 
             self.save_contact()
 
+    def get_contact_all(self,wx_id):
+        contact_file = f"contact_ipad_{wx_id}.json"
+        wx_contact_list={}
+        if os.path.exists(contact_file):
+            wx_contact_list = json.load(open(contact_file, 'r', encoding='utf-8'))
+        else:
+            room_list = self.get_device_room_list()
+            if room_list['code']==0:
+                for room_id in room_list['data']:
+                    if not room_id.endswith('@chatroom'):
+                        continue
+                    room_info = self.get_room_info(room_id)
+                    wx_contact_list[room_id] = room_info['data']
+                    if room_info['code']==0:
+                        if room_id.endswith('@chatroom'):
+                            time.sleep(2)
+                            members_info = self.get_chatroom_memberlist(room_id)
+                            if members_info['code']==0:
+
+                                room_info['data']['chatRoomMembers'] = members_info['data']
+
+            contacts = self.get_contact_list(0, 0)
+            if contacts['code'] == 0:
+                current_wx_contact_seq = contacts['data']['current_wx_contact_seq']
+                current_chat_room_contact_seq = contacts['data']['current_chat_room_contact_seq']
+                wxids=[]
+                while contacts['data']['ids']:
+                    for contact in contacts['data']['ids']:
+                        if contact not in ['weixin', 'fmessage', 'medianote', 'floatbottle',"filehelper","facesun"] \
+                                and not contact.startswith("gh_") and not contact.endswith(
+                            "@chatroom") :
+                            wxids.append(contact)
+                    time.sleep(1)
+                    contacts = self.get_contact_list(current_wx_contact_seq, current_chat_room_contact_seq)
+                    current_wx_contact_seq = contacts['data']['current_wx_contact_seq']
+                    current_chat_room_contact_seq = contacts['data']['current_chat_room_contact_seq']
+
+                for i in range(0,len(wxids)//10 + 1):
+                    wxids_temp = wxids[i * 10:i * 10 + 10]
+                    wx_ids = ",".join(wxids_temp)
+                    time.sleep(2)
+                    contact_info = self.get_contact_info(wx_ids)
+                    for contact in contact_info['data']:
+                        wx_contact_list[contact['userName']] = contact
+
+
+            #self.save_contact()
+            return  wx_contact_list
 
     def save_contact(self):
-
-        json.dump(iPadWx.shared_wx_contact_list,open(f"contact_ipad.json",'w',encoding='utf-8'),ensure_ascii=False, indent=4)
-        logger.info(f"保存联系人!")
+        if not self.wx_id:
+            logger.warning("No wx_id available, skipping contact save")
+            return
+            
+        contact_file = f"contact_ipad_{self.wx_id}.json"
+        json.dump(iPadWx.shared_wx_contact_list, open(contact_file, 'w', encoding='utf-8'), ensure_ascii=False, indent=4)
+        logger.info(f"保存联系人到{contact_file}!")
 
     def save_contact_xls(self):
-        if os.path.exists(f"群资料.xlsx"):
-            logger.info(f"群资料已经导出!")
-            #return
+        if not self.wx_id:
+            logger.warning("No wx_id available, skipping Excel save")
+            return
+            
+        xls_file = f"群资料_{self.wx_id}.xlsx"
+        if os.path.exists(xls_file):
+            logger.info(f"群资料已经导出到{xls_file}!")
+            return
+            
         # 将 JSON 数据转换为 Python 对象
         data = iPadWx.shared_wx_contact_list
 
@@ -157,7 +232,7 @@ class iPadWx:
                 ws.cell(row=row_num, column=3, value=group_info["memberCount"])
             row_num += 1
         # 保存 Excel 文件
-        wb.save('群资料.xlsx')
+        wb.save(xls_file)
 
     # don't forget to import aiohttp at the beginning of your file
 
@@ -192,6 +267,47 @@ class iPadWx:
             self.save_contact()
         return iPadWx.shared_wx_contact_list
 
+    def get_all_rooms(self):
+        wx_contact_list = {}
+        groups1 = self.get_room_list()
+        time.sleep(1)
+        groups2 = self.get_device_room_list()
+        time.sleep(1)
+        # 使用frozenset去重
+        if groups1['code'] == 0 and groups2['code'] == 0:
+            # 去重后，保留唯一的房间信息
+            #merged_list = list(set(tuple(sorted(item.items())) for item in groups1['data'] + groups2['data']))
+            #merged_groups = {dict(item)['room_id']: dict(item) for item in merged_list}  # 使用房间ID作为键
+            merged_groups = set(groups1["data"] + groups2["data"])
+
+            # 遍历去重后的房间字典
+            for room_id in merged_groups:
+                # 获取房间信息
+                if not room_id.endswith("@chatroom"):
+                    continue
+                try:
+
+                    room_info = self.get_room_info(room_id)
+                    logger.info(f"查询群信息: {room_id}")
+                    time.sleep(2)
+                    room_info= room_info.get("data",{})
+                    if room_info:
+                        if not room_info.get("chatRoomId" ,""):
+
+                            continue
+                    wx_contact_list[room_id] = room_info
+
+                    # 获取成员列表并加入房间信息
+                    members = self.get_chatroom_memberlist(room_id)
+                    time.sleep(2)
+                    wx_contact_list[room_id]['chatRoomMembers'] = members.get('data', [])
+                except Exception as e:
+                    logger.info(room_info)
+                    logger.info(members)
+                    logger.info(e)
+        logger.info("查询完成!")
+        return wx_contact_list
+
 
     def call_api(self, method, endpoint, data=None):
         url = f"{self.base_url}/{endpoint}"
@@ -211,6 +327,7 @@ class iPadWx:
                 #logger.debug(response.json())
                 return response.json()
             else:
+                logger.debug(response.json())
                 return None
         except Exception as e:
             logger.info("api 发送失败{0}".format(e))
@@ -261,7 +378,7 @@ class iPadWx:
                 self.auth = data.get("auth")
                 self.headers["we-token"] = self.token
                 self.headers["we-auth"] = self.auth
-                print(response.json())
+                logger.info(response.json())
                 return True,data
             else:
                 print(response.json())
@@ -297,14 +414,9 @@ class iPadWx:
             file.write(html_content)
 
         #print(f"HTML 文件已生成，请查看 {output_file} 文件来展示二维码图片。")
-        logger.info(f"HTML 文件已生成，请查看 {output_file} 文件来展示二维码图片。")
+        logger.info(f"HTML ���件已生成，请查看 {output_file} 文件来展示二维码图片。")
         # 在浏览器中打开生成的 HTML 文件
         webbrowser.open(output_file)
-    def confirm_login(self):
-        #response = self.call_api("POST", "user/check")
-        #if response['code']==0:
-        #    pass
-        return self.call_api("POST", "user/check")
     def relogin(self):
         return self.call_api("POST", "user/again" )
 
@@ -344,6 +456,7 @@ class iPadWx:
                 "8006",
                 "8007",
                 "8008",
+                "8009",
                 "9001",
                 "9002",
                 "9003",
@@ -487,6 +600,16 @@ class iPadWx:
 
         return self.call_api('POST', endpoint, data)
 
+    def send_finder_video(self, to_id, xml):
+        #发送视频号
+        endpoint = "open/finder/send"
+
+        data = {
+            "to_id": to_id,
+            "xml": xml
+        }
+
+        return self.call_api('POST', endpoint, data)
 
     def forward_video(self, to_id, xml):
 
@@ -509,6 +632,17 @@ class iPadWx:
             "md5": md5
             }
         return self.call_api('POST', 'open/file/forward', data)
+    def forward_voice(self, to_id, uuid,msg_id,clientmsgid, voicelength, length):
+
+        data = {
+            "to_id": to_id,
+            "uuid": uuid,
+            "msg_id": msg_id,
+            "clientmsgid": clientmsgid,
+            "voicelength": voicelength,
+            "length": length
+        }
+        return self.call_api('POST', 'open/voice/forward', data)
 
     def send_refer_msg(self, to_id, uuid, refer_id, refer_name,content):
         endpoint = "open/text/refer/send"
@@ -532,8 +666,8 @@ class iPadWx:
         }
 
         return self.call_api('POST', endpoint, data)
-    def get_room_list2(self):
-        return self.call_api('GET', 'open/room/list')
+    def get_device_room_list(self):
+        return self.call_api('GET', 'open/room/robot/list')
 
     def get_room_list(self):
         return self.call_api('GET', 'open/room/list')
@@ -673,7 +807,7 @@ class iPadWx:
         data = {
             "scene": scene,  # xml中获取
             "ticket": ticket,
-            # xml中获取  朋友来源：2 来源邮箱; 3 来源微信号; 12 来源QQ; 13 来源通讯录 ;14 群聊; 15 手机号 ;17名片; 18 附近的人;25漂流瓶;29摇一摇;30二维码
+            # xml中获取  朋友来源：2 来源邮箱; 3 来源微信号; 12 来源QQ; 13 来源通讯录 ;14 群聊; 15 手机号 ;17名片; 18 附近��人;25漂流瓶;29摇一摇;30二维码
             "wx_id": wx_id  # xml中获取
         }
         return self.call_api('POST', 'open/user/add', data=data)

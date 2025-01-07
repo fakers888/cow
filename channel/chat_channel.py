@@ -225,7 +225,7 @@ class ChatChannel(Channel):
         return context
 
     def _handle(self, context: Context):
-        if context is None or not context.content:
+        if context is None or (not context.content and not context["msg"].is_at):
             return
         if context.type!=ContextType.XML:
             logger.debug("[WX] ready to handle context: {}".format(context))
@@ -237,11 +237,12 @@ class ChatChannel(Channel):
         logger.debug("[WX] ready to decorate reply: {}".format(reply))
 
         # reply的包装步骤
-        if reply and reply.content:
-            reply = self._decorate_reply(context, reply)
-
-            # reply的发送步骤
-            self._send_reply(context, reply)
+        # 回复为空，但是有艾特
+        if reply:
+            if reply.content or (reply.content == "" and (reply.ext==1 or reply.ext == 2)):
+                reply = self._decorate_reply(context, reply)
+                # reply的发送步骤
+                self._send_reply(context, reply)
 
     def _generate_reply(self, context: Context, reply: Reply = Reply()) -> Reply:
         e_context = PluginManager().emit_event(
@@ -252,7 +253,10 @@ class ChatChannel(Channel):
         )
         reply = e_context["reply"]
         AI_reply =  conf().get("AI_reply", False)
-
+        if context["msg"].is_at and context.get("isgroup", False) and context["msg"].to_user_id not in context['msg'].at_list :
+            #at的是不是机器人，在群里并且是at消息,并且没有插件处理，则不继续由AI处理
+            logger.debug("[WX] at非机器人，没有插件处理艾特，不处理at消息")
+            return reply
         if AI_reply and not e_context.is_pass():
 
             logger.debug("[WX] ready to handle context: type={}, content={}".format(context.type, context.content))
@@ -306,6 +310,9 @@ class ChatChannel(Channel):
                 logger.warning("[WX]no plugin handle context type: {}".format(context.type))
                 pass
             elif context.type == ContextType.VIDEO :
+                logger.warning("[WX]no plugin handle context type: {}".format(context.type))
+                pass
+            elif context.type == ContextType.REVOKE_MESSAGE :
                 logger.warning("[WX]no plugin handle context type: {}".format(context.type))
                 pass
             else:
@@ -365,6 +372,8 @@ class ChatChannel(Channel):
                 elif reply.type ==ReplyType.InviteRoom:
                     pass
                 elif reply.type == ReplyType.IMAGE_XML:
+                    pass
+                elif reply.type == ReplyType.FILE_XML:
                     pass
                 else:
                     logger.error("[WX] unknown reply type: {}".format(reply.type))

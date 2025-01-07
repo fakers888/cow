@@ -387,6 +387,26 @@ async def add_wechat_account():
     # 如果没有异常，则操作成功
     return jsonify({'status': 'success', 'message': '账号添加成功'})
 
+@user_bp.route('/update_wechat_account', methods=['POST'])
+async def update_wechat_account():
+    try:
+        data = await request.get_json()
+        db_session = Session_sql()
+        account = db_session.query(WeChatAccount).filter_by(account_id=data['account_id']).first()
+        if account:
+            account.province = data.get('province', account.province)
+            account.city = data.get('city', account.city)
+            account.callback_url = data.get('callback_url', account.callback_url)
+            db_session.commit()
+            return jsonify({'status': 'success', 'message': '账号更新成功'})
+        else:
+            return jsonify({'status': 'error', 'message': '未找到对应的账号'})
+    except Exception as e:
+        logger.error(f'An error occurred while updating account: {e}')
+        db_session.rollback()
+        return jsonify({'status': 'error', 'message': '更新账号时发生未知错误', 'details': str(e)})
+    finally:
+        db_session.close()
 
 @user_bp.route('/startlisten', methods=['POST'])
 async def startlisten():

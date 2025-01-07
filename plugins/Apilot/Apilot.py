@@ -10,7 +10,7 @@ from common.log import logger
 from plugins import *
 from datetime import datetime, timedelta
 BASE_URL_VVHAN = "https://api.vvhan.com/api/"
-BASE_URL_ALAPI = "https://v2.alapi.cn/api/"
+#BASE_URL_ALAPI = "https://v2.alapi.cn/api/"
 
 
 @plugins.register(

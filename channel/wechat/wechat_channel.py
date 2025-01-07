@@ -68,7 +68,12 @@ class WechatChannel(ChatChannel):
             expiry_date  =bot_info['data']['expiry_date']
             if expiry_date < datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"):
                 logger.error("机器人到期时间{}!!".format(expiry_date))
-
+            # 检查回调URL
+            config_callback_url = conf().get("http_hook")
+            current_callback_url = user_info['data']['callback_url']
+            if config_callback_url != "" and current_callback_url != config_callback_url:
+                logger.error(f"机器人callback 不正确,以本地配置为准：{config_callback_url}!!")
+                self.bot.set_callback_url(config_callback_url)
         update_group = True
         if update_group:
             groups = self.bot.get_room_list()

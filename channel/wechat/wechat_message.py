@@ -21,6 +21,9 @@ class WechatMessage(ChatMessage):
 
     def __init__(self, itchat_msg, is_group=False):
         super().__init__(itchat_msg)
+        self.Appid = itchat_msg.get("Appid","")
+        if self.Appid:
+            return
         self.msg_id = itchat_msg["msg_id"]
         self.create_time = itchat_msg["arr_at"]
         self.is_group = itchat_msg["group"]
@@ -42,6 +45,7 @@ class WechatMessage(ChatMessage):
             #self.bot.forward_video("gh_c95e05e75405", self.content)
         elif msg_type  in ['8004','9004'] :#群聊语音消息
             self.ctype = ContextType.VOICE
+            self.content = itchat_msg["msg"]
             #self.content = TmpDir().path() + itchat_msg.get("FileName")  # content直接存临时目录路径
             #self._prepare_fn = lambda: itchat_msg.download(self.content)
         # elif msg_type in ['8005']:#群聊红包、文件、链接、小程序等类型
@@ -49,20 +53,43 @@ class WechatMessage(ChatMessage):
         #     self.content = itchat_msg["msg"]
         elif msg_type in ['8006', '9006']:  # 群聊地图位置消息
             self.ctype = ContextType.MAP
+            self.content = itchat_msg["msg"]
         elif msg_type in ['8007', '9007']:#群聊表情包
             self.ctype = ContextType.EMOJI
+            self.content = itchat_msg["msg"]
         elif msg_type in ['8008', '9008']:#群聊名片
             self.ctype = ContextType.CARD
+            self.content = itchat_msg["msg"]
         elif msg_type in ['7005','9005','8005']: #xml格式的
-            result = self.parse_wechat_message( itchat_msg["msg"])
-            if result['message_type'] =='sysmsgtemplate' and  result['subtype'] =='invite' :
-                # 这里只能得到nickname， actual_user_id还是机器人的id
+            result = self.parse_wechat_message(itchat_msg["msg"])
+            if result['message_type'] == 'sysmsgtemplate' and result['subtype'] == 'invite':
                 self.ctype = ContextType.JOIN_GROUP
                 self.content = itchat_msg["msg"]
-                self.actual_user_nickname = result['joiners_usernames'][0]['nickname']
-                #self.content= f"{result['inviter_username']['nickname']} 邀请 {self.actual_user_nickname } 加入了群聊!"
+                
+                if result.get('joiners_usernames'):
+                    if result.get('join_type') == 'qrcode':
+                        # 扫码进群
+                        joiner = result['joiners_usernames'][0]
+                        sharer = result.get('sharer', {})
+                        self.actual_user_nickname = joiner['nickname']
+                        self.content = f"{joiner['nickname']} 通过扫描 {sharer.get('nickname', '未知用户')} 的二维码加入群聊"
+                    else:
+                        # 邀请进群
+                        self.actual_user_nickname = result['joiners_usernames'][0]['nickname']
+                        inviter = result.get('inviter_username', {})
+                        self.content = f"{inviter.get('nickname', '未知用户')} 邀请 {self.actual_user_nickname} 加入群聊"
+                else:
+                    # 处理异常情况
+                    logger.warning("No joiner information found in the message")
+                    self.actual_user_nickname = "未知用户"
+                    self.content = "新成员加入群聊"
+                if msg_type =='9005': #XML消息类型变成了9005
+                    self.ctype = ContextType.XML
+                    self.content = itchat_msg.get("msg")
+                    if result['message_type'] == 74:
+                        self.ctype = ContextType.FILE
 
-            elif result['message_type'] =='pat':
+            elif result['message_type'] == 'pat':
 
                 self.ctype = ContextType.PATPAT
 
@@ -74,7 +101,7 @@ class WechatMessage(ChatMessage):
                     displayName, nickname = self.get_chatroom_nickname(self.room_id, self.actual_user_id)
                     self.actual_user_nickname = displayName or nickname
                     self.content = result['action']
-            elif result['message_type'] =='appmsg' and  result['subtype'] =='reference' :
+            elif result['message_type'] == 'appmsg' and result['subtype'] == 'reference':
                 # 这里只能得到nickname， actual_user_id还是机器人的id
                 '''
                 {
@@ -90,20 +117,20 @@ class WechatMessage(ChatMessage):
                     }
                 }
                 '''
-                if result["reference"]["url"] and result["reference"]["url"] !="N/A":
+                if result["reference"]["url"] and result["reference"]["url"] != "N/A":
                     self.ctype = ContextType.TEXT
-                    #self.content = result["title"] #引用说的话
+                    # self.content = result["title"] #引用说的话
                     self.content = f'{result["title"]} {result["reference"]["url"]}'
                 else:
                     self.ctype = ContextType.XML
                     # self.content = result["title"] #引用说的话
-                    self.content =  itchat_msg["msg"]
+                    self.content = itchat_msg["msg"]
 
-            elif result['message_type'] ==19 and 'title' in  result  and  result['title'] =='群聊的聊天记录':
+            elif result['message_type'] == 19 and 'title' in result and result['title'] == '群聊的聊天记录':
 
                 # 这里只能得到nickname， actual_user_id还是机器人的id
                 self.ctype = ContextType.LINK
-                self.content = json.dumps(result["image_infos"]) # 内容 list
+                self.content = json.dumps(result["image_infos"])  # 内容 list
             elif result['message_type'] == 2000 and result['title'] == "微信转账":
                 '''
                 message_info = {
@@ -116,28 +143,34 @@ class WechatMessage(ChatMessage):
                 '''
                 self.ctype = ContextType.WCPAY
 
-                self.content = result['feedesc'] + "\n" + result['pay_memo'] + "\n" + result['receiver_username']+"\n"+str(result["paysubtype"])
+                self.content = result['feedesc'] + "\n" + result['pay_memo'] + "\n" + result[
+                    'receiver_username'] + "\n" + str(result["paysubtype"])
                 pass
             elif result['message_type'] == 6 or result['message_type'] == 74:
                 self.ctype = ContextType.FILE
                 self.content = itchat_msg["msg"]
-            elif "你已添加了" in itchat_msg["msg"]:  #通过好友请求
+            elif "你已添加了" in itchat_msg["msg"]:  # 通过好友请求
                 self.ctype = ContextType.ACCEPT_FRIEND
                 self.content = itchat_msg["msg"]
+
             elif is_group and ("移出了群聊" in itchat_msg["msg"]):
                 self.ctype = ContextType.EXIT_GROUP
                 self.content = itchat_msg["msg"]
                 self.actual_user_nickname = re.findall(r"\"(.*?)\"", itchat_msg["msg"])
-                    
-            elif "你已添加了" in itchat_msg["msg"]:  #通过好友请求
+
+            elif "你已添加了" in itchat_msg["msg"]:  # 通过好友请求
                 self.ctype = ContextType.ACCEPT_FRIEND
+                self.content = itchat_msg["msg"]
+            elif result['message_type']=="revokemsg":
+                self.ctype = ContextType.REVOKE_MESSAGE
                 self.content = itchat_msg["msg"]
 
             else:
                 self.ctype = ContextType.XML
                 self.content = itchat_msg["msg"]
-                pass
-                #raise NotImplementedError("Unsupported note message: " + itchat_msg["msg"])
+
+                logger.error("Unsupported note message: ")
+
         elif msg_type in ['7001']: #添加好友消息
             # 解析 XML
             xml_data = itchat_msg["msg"]
@@ -150,11 +183,11 @@ class WechatMessage(ChatMessage):
             logger.info(f"scene: {scene}, ticket: {ticket}")
             self.content = xml_data
 
-        elif msg_type in ['8005','9005']:
-            self.ctype = ContextType.FILE
-            #self.content = TmpDir().path() + itchat_msg.get("FileName")  # content直接存临时目录路径
-            if self.content:
-                pass
+        # elif msg_type in ['8005','9005']:
+        #     self.ctype = ContextType.FILE
+        #     #self.content = TmpDir().path() + itchat_msg.get("FileName")  # content直接存临时目录路径
+        #     if self.content:
+        #         pass
                 #self._prepare_fn = lambda: itchat_msg.download(self.content)
         elif msg_type == '9006':
             self.ctype = ContextType.XML
@@ -180,13 +213,15 @@ class WechatMessage(ChatMessage):
                 self.other_user_id = itchat_msg["room_id"]
                 displayName,nickname = self.get_chatroom_nickname(self.room_id, self.from_user_id)
 
-                self.from_user_nickname = nickname
+                self.from_user_nickname = displayName or nickname
                 self.self_display_name =  displayName or nickname
                 _,self.to_user_nickname  = self.get_chatroom_nickname(self.room_id, self.to_user_id)
 
                 #self.to_user_nickname = self.get_chatroom_nickname(self.room_id, self.to_user_id)
                 self.other_user_nickname = iPadWx.shared_wx_contact_list[self.room_id]['nickName']
             else:
+                if self.from_user_id not in iPadWx.shared_wx_contact_list:
+                    self.save_single_contact(self.from_user_id)
                 if self.from_user_id in iPadWx.shared_wx_contact_list:
                     self.from_user_nickname =  iPadWx.shared_wx_contact_list[self.from_user_id]['nickName']
                 if itchat_msg['bot_id']==itchat_msg['from_id']:#机器人发送
@@ -212,30 +247,51 @@ class WechatMessage(ChatMessage):
                 pass
                 self.actual_user_nickname = self.self_display_name #发送者的群昵称 还是本身的昵称
             subtract_res = self.content
+            if self.is_at:
+
+                subtract_res =self.remove_at_mentions(self.content)
+                self.content=subtract_res
+                logger.info(f"存在at 去除后{self.content}")
             for at_id in self.at_list:
                 at_info = self.get_user(iPadWx.shared_wx_contact_list[self.room_id]["chatRoomMembers"],at_id)
+                if at_info:
+                    nickname = at_info['nickName']
+                    if nickname:
+                        pattern = f"@{re.escape(nickname)}(\u2005|\u0020)"
+                        subtract_res = re.sub(pattern, r"", subtract_res)
+                    displayName = at_info['displayName'] if at_info['displayName'] else ""
+                    if displayName:
+                        pattern = f"@{re.escape(at_info['displayName'])}(\u2005|\u0020)"
+                        subtract_res = re.sub(pattern, r"", subtract_res)
+                    # 如果昵称没去掉，则用替换的方法
+                    if subtract_res == self.content :
+                        # 前缀移除后没有变化，使用群昵称再次移除
+                        # pattern = f"@{re.escape(context['msg'].self_display_name)}(\u2005|\u0020)"
+                        if displayName:
+                            subtract_res = self.content.replace("@" + displayName, "").replace(
+                                "@" + displayName, "")
+            if self.is_at:
+                #subtract_res = self.remove_at_mentions(self.content)
+                self.content = subtract_res
+                logger.info(f"存在at2 去除后{self.content}")
 
-                nickname = at_info['nickName']
-                if nickname:
-                    pattern = f"@{re.escape(nickname)}(\u2005|\u0020)"
-                    subtract_res = re.sub(pattern, r"", subtract_res)
-                displayName = at_info['displayName'] if at_info['displayName'] else ""
-                if displayName:
-                    pattern = f"@{re.escape(at_info['displayName'])}(\u2005|\u0020)"
-                    subtract_res = re.sub(pattern, r"", subtract_res)
-                # 如果昵称没去掉，则用替换的方法
-                if subtract_res == self.content :
-                    # 前缀移除后没有变化，使用群昵称再次移除
-                    # pattern = f"@{re.escape(context['msg'].self_display_name)}(\u2005|\u0020)"
-                    subtract_res = self.content.replace("@" + nickname, "").replace(
-                        "@" + displayName, "")
-            self.content = subtract_res
+
+    def remove_at_mentions(self,text):
+        # 使用正则表达式匹配所有 @昵称 格式的片段
+        cleaned_text = re.sub(r'@.*?\u2005', '', text)
+        # 清理多余的空格和标点符号
+        return cleaned_text.strip()
     def get_user(self,users, username):
         # 使用 filter 函数通过给定的 userName 来找寻符合条件的元素
         if not isinstance(users,list):
             return None
-        res = list(filter(lambda user: user['userName'] == username, users))
-
+        #res = list(filter(lambda user: user['userName'] == username, users))
+        result=None
+        for item in users:
+            if item["userName"]==username:
+                result=item
+                break
+        return result
         return res[0] if res else None  # 如果找到了就返回找到的元素（因为 filter 返回的是列表，所以我们取第一个元素），否则返回 None
     def get_chatroom_nickname(self, room_id: str = 'null', wxid: str = 'ROOT'):
         '''
@@ -267,11 +323,11 @@ class WechatMessage(ChatMessage):
                 member_info = self.get_user(members['data'], wxid)
                 iPadWx.shared_wx_contact_list[room_id]['chatRoomMembers'] = members['data']
                 self.save_contact()
-
-            return  member_info['displayName'] , member_info['nickName']
+            if member_info:
+                return  member_info['displayName'] , member_info['nickName']
         return None,None
 
-    def parse_wechat_message(self,xml_data):
+    def parse_wechat_message(self, xml_data):
         def get_member_info(member_element):
             if member_element is not None:
                 username = member_element.findtext('.//username').strip()
@@ -301,27 +357,68 @@ class WechatMessage(ChatMessage):
             }
         elif message_type == 'sysmsgtemplate':
             # 系统消息，可能是邀请或撤回
-            sub_type = root.find('./subtype').text if root.find('./subtype') is not None else None
-            sub_type = root.find('.//sysmsgtemplate/content_template[@type="tmpl_type_profile"]')
-            if sub_type:
+            content_template = root.find('.//sysmsgtemplate/content_template')
+            if content_template is not None and content_template.get('type') in ['tmpl_type_profile',"tmpl_type_profilewithrevoke"]:
+                template_text = content_template.find('.//template').text if content_template.find('.//template') is not None else ''
+                
+                # 处理扫码进群的情况
+                if '"通过扫描"' in template_text and '分享的二维码加入群聊' in template_text:
+                    # 获取加入群聊的成员信息
+                    adder_link = root.find('.//link_list/link[@name="adder"]')
+                    from_link = root.find('.//link_list/link[@name="from"]')
+                    
+                    joiners = []
+                    if adder_link is not None:
+                        member = adder_link.find('.//member')
+                        if member is not None:
+                            username = member.findtext('username', '').strip()
+                            nickname = member.findtext('nickname', '').strip()
+                            joiners.append({
+                                'username': username,
+                                'nickname': nickname
+                            })
+                    
+                    # 获取分享二维码的人信息
+                    sharer = None
+                    if from_link is not None:
+                        member = from_link.find('.//member')
+                        if member is not None:
+                            username = member.findtext('username', '').strip()
+                            nickname = member.findtext('nickname', '').strip()
+                            sharer = {
+                                'username': username,
+                                'nickname': nickname
+                            }
+                    
+                    return {
+                        'message_type': 'sysmsgtemplate',
+                        'subtype': 'invite',
+                        'joiners_usernames': joiners,
+                        'sharer': sharer,
+                        'join_type': 'qrcode'
+                    }
+                
+                # 处理其他邀请情况（原有逻辑）
 
-                # 获取邀请者信息
-                inviter_link = root.find('.//link_list/link[@name="username"]')
+                inviter_link = root.find('.//link_list/link[@name="username"]') or root.find('.//link_list/link[@name="names"]')
+                if inviter_link is None:
+                    inviter_link = root.find('.//link_list/link[@name="from"]')
                 inviter = get_member_info(inviter_link.find('.//member') if inviter_link is not None else None)
 
-                # 获取加入群聊的成员信息
                 names_link = root.find('.//link_list/link[@name="names"]')
+                if names_link is None:
+                    names_link = root.find('.//link_list/link[@name="adder"]')
                 members = names_link.findall('.//memberlist/member') if names_link is not None else []
                 joiners = [get_member_info(member) for member in members if get_member_info(member)]
-
+                
                 return {
-                    'message_type': message_type,
-                    'subtype': "invite",
+                    'message_type': 'sysmsgtemplate',
+                    'subtype': 'invite',
                     'inviter_username': inviter,
-                    'joiners_usernames': joiners
+                    'joiners_usernames': joiners,
+                    'join_type': 'invite'
                 }
-            else:
-                return {'message_type': message_type, 'subtype': sub_type, 'info': '未知系统消息类型'}
+            
         elif message_type == 'revokemsg':
             # 消息撤回
             session = root.find('./session').text if root.find('./session') is not None else None
@@ -518,3 +615,29 @@ class WechatMessage(ChatMessage):
 
         json.dump(iPadWx.shared_wx_contact_list,open("contact.json",'w',encoding='utf-8'), indent=4)
         logger.info(f"保存联系人!{iPadWx.shared_wx_contact_list}")
+
+    def save_single_contact(self,user_id):
+        result = self.bot.get_contact_info(user_id)
+        # 将好友保存到联系人中
+        if result.get('code') == 0 and result.get('data')[0]:
+            logger.info(f"用户昵称不存在,重新获取用户信息")
+            info = result.get('data', {})[0]
+            nickname = info.get('nickName')
+            fromusername = info.get('userName')
+            alias = info.get('weixin')
+            sex = info.get('sex')
+            bigheadimgurl = info.get('bigHead')
+            smallheadimgurl = info.get('smallHead')
+            remark = info.get('remark')
+            if fromusername not in iPadWx.shared_wx_contact_list:
+                iPadWx.shared_wx_contact_list[fromusername] = {
+                    'nickName': nickname,
+                    'userName': fromusername,
+                    'weixin': alias,
+                    'sex': sex,
+                    'bigHead': bigheadimgurl,
+                    'smallHead': smallheadimgurl,
+                    "remark":remark
+
+                }
+                self.bot.save_contact()

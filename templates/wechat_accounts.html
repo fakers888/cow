@@ -7,16 +7,14 @@
 <!-- 操作按钮 -->
 <div class="mb-3">
     <button type="button" class="btn btn-primary" onclick="showAddAccountModal()">新增</button>
-
+    <button type="button" class="btn btn-warning" onclick="showEditSelected()">编辑</button>
     <button type="button" class="btn btn-warning" id="initializeBtn">初始</button>
     <button type="button" class="btn btn-secondary" id="showQRCodeBtn">扫码</button>
     <button type="button" class="btn btn-danger" id="reloginBtn">登录</button>
     <button type="button" class="btn btn-success" id="testBtn">测试</button>
     <button type="button" class="btn btn-info" id="updateBtnbasic">更新</button>
-     <button type="button" class="btn btn-success" id="startListenBtn">开启</button>
+    <button type="button" class="btn btn-success" id="startListenBtn">开启</button>
     <button type="button" class="btn btn-info" id="updateBtn">更新群</button>
-
-
 </div>
 
 <!-- 表格 -->
@@ -30,11 +28,12 @@
                 <th class="sortable" data-sort="end_time">到期<i class="fas fa-sort"></i></th>
                 <th class="sortable" data-sort="nickname">昵称<i class="fas fa-sort"></i></th>
                 <th class="sortable" data-sort="city">城市<i class="fas fa-sort"></i></th>
+
             </tr>
         </thead>
         <tbody>
             {% for account in accounts %}
-            <tr>
+            <tr data-province="{{ account.province }}" data-city="{{ account.city }}" data-callback-url="{{ account.callback_url }}">
                 <td>
                     <input type="radio" name="selectedAccount" value="{{ account.account_id }}">
                 </td>
@@ -45,6 +44,7 @@
                 </td>
                 <td>{{ account.nickname }}</td>
                 <td>{{ account.city }}</td>
+
             </tr>
             {% endfor %}
         </tbody>
@@ -104,11 +104,11 @@
                         <input type="text" class="form-control" id="auth_password" name="auth_password" required>
                     </div>
                     <div class="mb-3">
-                        <label for="province" class="form-label">省份(用于扫码登录，例如广东省)</label>
+                        <label for="province" class="form-label">省份(用于扫码登录，直辖市写这里)</label>
                         <input type="text" class="form-control" id="province" name="province">
                     </div>
                     <div class="mb-3">
-                        <label for="city" class="form-label">城市(用于扫码登录，例如广州市，直辖市留空)</label>
+                        <label for="city" class="form-label">城市(直辖市保持空)</label>
                         <input type="text" class="form-control" id="city" name="city">
                     </div>
                     <div class="mb-3">
@@ -120,6 +120,39 @@
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
                 <button type="button" class="btn btn-primary" onclick="addAccount()">保存</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Add Update Account Modal -->
+<div class="modal fade" id="updateAccountModal" tabindex="-1" aria-labelledby="updateAccountModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="updateAccountModalLabel">更新账号</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="updateAccountForm">
+                    <input type="hidden" id="update_account_id" name="account_id">
+                    <div class="mb-3">
+                        <label for="update_province" class="form-label">省份</label>
+                        <input type="text" class="form-control" id="update_province" name="province">
+                    </div>
+                    <div class="mb-3">
+                        <label for="update_city" class="form-label">城市</label>
+                        <input type="text" class="form-control" id="update_city" name="city">
+                    </div>
+                    <div class="mb-3">
+                        <label for="update_callback_url" class="form-label">回调地址</label>
+                        <input type="text" class="form-control" id="update_callback_url" name="callback_url">
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-primary" onclick="updateAccount()">保存</button>
             </div>
         </div>
     </div>
@@ -629,7 +662,7 @@ function handleManualLogin(accountId) {
                 title: '登录成功',
                 text: data.message,
                 icon: 'success',
-                confirmButtonText: '确定'
+                confirmButtonText: '确认'
             }).then(() => {
                 location.reload();
             });
@@ -704,6 +737,81 @@ function clearLoginSession(accountId) {
     }).catch(error => {
         console.error("Error clearing login session:", error);
     });
+}
+
+function showUpdateAccountModal(accountId, province, city, callbackUrl) {
+    document.getElementById('update_account_id').value = accountId;
+    document.getElementById('update_province').value = province;
+    document.getElementById('update_city').value = city;
+    document.getElementById('update_callback_url').value = callbackUrl;
+    $('#updateAccountModal').modal('show');
+}
+
+function updateAccount() {
+    const form = document.getElementById('updateAccountForm');
+    const formData = new FormData(form);
+    const data = Object.fromEntries(formData.entries());
+
+    fetch('/update_wechat_account', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(data)
+    })
+    .then(response => response.json())
+    .then(result => {
+        if (result.status === 'success') {
+            Swal.fire({
+                title: '成功',
+                text: '账号更新成功，请重新开启群监听！',
+                icon: 'success',
+                confirmButtonText: '确定'
+            }).then(() => {
+                $('#updateAccountModal').modal('hide');
+                location.reload();
+            });
+        } else {
+            Swal.fire({
+                title: '错误',
+                text: '更新失败：' + result.message,
+                icon: 'error',
+                confirmButtonText: '确定'
+            });
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        Swal.fire({
+            title: '错误',
+            text: '更新过程中发生错误，请查看控制台了解详情。',
+            icon: 'error',
+            confirmButtonText: '确定'
+        });
+    });
+}
+
+function showEditSelected() {
+    const selectedAccount = document.querySelector('input[name="selectedAccount"]:checked');
+    if (!selectedAccount) {
+        Swal.fire({
+            title: '提示',
+            text: '请先选择要编辑的账号',
+            icon: 'warning',
+            confirmButtonText: '确定'
+        });
+        return;
+    }
+
+    // 获取选中行的数据
+    const row = selectedAccount.closest('tr');
+    const accountId = selectedAccount.value;
+    const province = row.getAttribute('data-province') || '';
+    const city = row.getAttribute('data-city') || '';
+    const callbackUrl = row.getAttribute('data-callback-url') || '';
+
+    // 显示编辑模态框
+    showUpdateAccountModal(accountId, province, city, callbackUrl);
 }
 
 </script>
