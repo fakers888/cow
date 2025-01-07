@@ -187,7 +187,7 @@ def get_qrcode_route(account_id):
             'is_wx_token': False
         })
     
-    return jsonify({'error': '获取登录二维码失败！如果非首次登录，不需要获取二维码，点击登录即可'})
+    return jsonify({'error': qr_response['message']})
 
 def check_wechat_status_beta(wxbot):
     """Check if WeChat is truly online for iPadWx_Beta"""
