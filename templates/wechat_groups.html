@@ -183,9 +183,6 @@
                             <td>${group.remark}</td>
                             <td>${group.members_count}</td>
                             <td>
-                                <button class="btn btn-info btn-sm send-message" 
-                                        data-chatroom-id="${group.chatRoomId}" 
-                                        data-group-name="${group.name}">发消息</button>
                                 <button class="btn btn-danger btn-sm delete-group" 
                                         data-chatroom-id="${group.chatRoomId}" 
                                         data-group-name="${group.name}">删除</button>
@@ -299,50 +296,7 @@
             }
         });
 
-        // 发送消息按钮点击事件
-        $(document).on('click', '.send-message', function() {
-            const chatRoomId = $(this).data('chatroom-id');
-            const groupName = $(this).data('group-name');
-            
-            // 设置接收人信息
-            $('#recipientWxid').text(chatRoomId);
-            $('#recipientNickname').text(groupName);
-            $('#messageContent').val('');
-            $('#messageModal').modal('show');
-        });
 
-        // 确认发送消息
-        $('#sendMessageConfirm').on('click', async function() {
-            const wxid = $('#recipientWxid').text();
-            const message = $('#messageContent').val().trim();
-
-            if (!message) {
-                alert('请输入消息内容');
-                return;
-            }
-
-            try {
-                const response = await fetch('/receive_msg', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        wxid: wxid,
-                        message: message
-                    })
-                });
-
-                const result = await response.json();
-                if (result.status === 'success') {
-                    alert('消息发送成功');
-                    $('#messageModal').modal('hide');
-                } else {
-                    alert('发送失败: ' + result.message);
-                }
-            } catch (error) {
-                console.error('Error sending message:', error);
-                alert('发送失败');
-            }
-        });
 
         // 在成员表格中添加选择框列
         function addCheckboxToMembersTable(members) {
