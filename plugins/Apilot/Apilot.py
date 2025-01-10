@@ -10,7 +10,7 @@ from common.log import logger
 from plugins import *
 from datetime import datetime, timedelta
 BASE_URL_VVHAN = "https://api.vvhan.com/api/"
-#BASE_URL_ALAPI = "https://v2.alapi.cn/api/"
+BASE_URL_ALAPI= "https://v2.alapi.cn/api/"
 
 
 @plugins.register(
@@ -186,7 +186,7 @@ class Apilot(Plugin):
         return url
     def get_morning_news(self, alapi_token, morning_news_text_enabled):
         if not alapi_token:
-            url = BASE_URL_VVHAN + "60s?type=json"
+            url = BASE_URL_ALAPI + "zaobao"
             payload = "format=json"
             headers = {'Content-Type': "application/x-www-form-urlencoded"}
             try:
@@ -311,7 +311,7 @@ class Apilot(Plugin):
                 return self.handle_error(e, "出错啦，稍后再试")
         else:
             # 使用 ALAPI 的 URL 和提供的 token
-            url = BASE_URL_ALAPI + "star"
+            url = BASE_URL_VVHAN + "star"
             payload = f"token={alapi_token}&star={astro_sign}"
             headers = {'Content-Type': "application/x-www-form-urlencoded"}
             try:
@@ -376,7 +376,7 @@ class Apilot(Plugin):
             return final_output
 
     def query_express_info(self, alapi_token, tracking_number, com="", order="asc"):
-        url = BASE_URL_ALAPI + "kd"
+        url = BASE_URL_VVHAN + "kd"
         payload = f"token={alapi_token}&number={tracking_number}&com={com}&order={order}"
         headers = {'Content-Type': "application/x-www-form-urlencoded"}
 
@@ -407,10 +407,10 @@ class Apilot(Plugin):
             return self.handle_error(e, "快递查询失败")
 
     def get_weather(self, alapi_token, city_or_id: str, date: str, content):
-        url = BASE_URL_ALAPI + 'tianqi'
+        url = BASE_URL_VVHAN + 'tianqi'
         isFuture = date in ['明天', '后天', '七天', '7天']
         if isFuture:
-            url = BASE_URL_ALAPI + 'tianqi/seven'
+            url = BASE_URL_VVHAN + 'tianqi/seven'
         # 判断使用id还是city请求api
         if city_or_id.isnumeric():  # 判断是否为纯数字，也即是否为 city_id
             params = {

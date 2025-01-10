@@ -546,7 +546,9 @@ class iPadWx:
             "url": url
         }
 
-        return self.call_api('POST',endpoint, data)
+        ret = self.call_api('POST',endpoint, data)
+        logger.debug(f"send image URL result: {ret}")
+        return ret
 
     def send_pic_msg(self, to_id, url):
         endpoint = "open/image/send"
