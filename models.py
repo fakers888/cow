@@ -1,24 +1,26 @@
 # encoding:utf-8
-from sqlalchemy import create_engine, Column, Integer, String, Boolean, ForeignKey, Text,VARCHAR, JSON
+from sqlalchemy import create_engine, Column, Integer, String, Boolean, ForeignKey, Text, VARCHAR, JSON
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, relationship
 from sqlalchemy import create_engine, Column, Integer, String, Boolean, ForeignKey, DateTime
 from sqlalchemy.orm import relationship, sessionmaker
 from sqlalchemy.ext.declarative import declarative_base
 from datetime import datetime
-from sqlalchemy.exc import PendingRollbackError#
+from sqlalchemy.exc import PendingRollbackError  #
 import json
-
+from sqlalchemy import update
 
 Base = declarative_base()
+
 
 class User(Base):
     __tablename__ = 'users'
     id = Column(Integer, primary_key=True)
     username = Column(VARCHAR(30), unique=True, nullable=False)
     password = Column(VARCHAR(200), nullable=False)
-    owner_wxid = Column(VARCHAR(150),  unique=True, nullable=False)
+    owner_wxid = Column(VARCHAR(150), unique=True, nullable=False)
     wechat_account = relationship("WeChatAccount", back_populates="user")
+
 
 class WeChatAccount(Base):
     __tablename__ = 'wechat_accounts'
@@ -33,7 +35,7 @@ class WeChatAccount(Base):
     token = Column(VARCHAR(300))
     auth = Column(VARCHAR(300))
     account_type = Column(Integer, default=1)
-    auth_account=Column(VARCHAR(300))
+    auth_account = Column(VARCHAR(300))
     auth_password = Column(VARCHAR(300))
     callback_url = Column(VARCHAR(150))
     owner_wxid = Column(VARCHAR(150), ForeignKey('users.owner_wxid'))
@@ -41,9 +43,38 @@ class WeChatAccount(Base):
     whitelisted_group_ids = Column(JSON)  # 使用JSON类型存储列表
     max_group = Column(Integer)
     push_needed = Column(Boolean, default=True)
-    
+
     groups = relationship("WeChatGroup", back_populates="account")
     user = relationship("User", back_populates="wechat_account")
+
+    @classmethod
+    def update_end_time_sql(cls, session, account_id, new_end_time):
+        """使用 SQL 语句更新 end_time 字段"""
+        stmt = update(cls).where(cls.id == account_id).values(end_time=new_end_time)
+        session.execute(stmt)
+        session.commit()  # 提交更改
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'account_id': self.account_id,
+            'is_online': self.is_online,
+            'wx_id': self.wx_id,
+            'end_time': self.end_time.isoformat() if self.end_time else None,
+            'nickname': self.nickname,
+            'province': self.province,
+            'city': self.city,
+            'token': self.token,
+            'auth': self.auth,
+            'auth_account': self.auth_account,
+            'auth_password': self.auth_password,
+            'callback_url': self.callback_url,
+            'owner_wxid': self.owner_wxid,
+            'whitelisted_group_ids': self.whitelisted_group_ids,
+            'max_group': self.max_group,
+            'push_needed': self.push_needed
+        }
+
 
 class WeChatGroup(Base):
     __tablename__ = 'wechat_groups'
@@ -55,6 +86,8 @@ class WeChatGroup(Base):
     account_id = Column(Integer, ForeignKey('wechat_accounts.id'))
     account = relationship("WeChatAccount", back_populates="groups")
     chatRoomOwner = Column(VARCHAR(150))
+    update_time = Column(DateTime, default=datetime.now())
+
     # 定义与 WeChatGroupMember 的一对多关系
     '''
     relationship 的基本概念
@@ -73,6 +106,7 @@ class WeChatGroup(Base):
     '''
     members = relationship("WeChatGroupMember", back_populates="group", cascade="all, delete-orphan")
 
+
 class WeChatGroupMember(Base):
     __tablename__ = 'wechat_group_members'
     id = Column(Integer, primary_key=True)
@@ -88,6 +122,7 @@ class WeChatGroupMember(Base):
     # 定义与 WeChatGroup 的多对一关系
     group = relationship("WeChatGroup", back_populates="members")
 
+
 class AutoReply(Base):
     __tablename__ = 'auto_replies'
     id = Column(Integer, primary_key=True)
@@ -95,11 +130,12 @@ class AutoReply(Base):
     reply_type = Column(VARCHAR(10), nullable=False)  # 'text' or 'image'
     content = Column(Text, nullable=False)
 
-engine = create_engine('sqlite:///app.db')
-Base.metadata.create_all(engine)
 
-Session_sql = sessionmaker(bind=engine)
-db_session = Session_sql()
+# engine = create_engine('sqlite:///app.db')
+# Base.metadata.create_all(engine)
+#
+# Session_sql = sessionmaker(bind=engine)
+# db_session = Session_sql()
 class MediaMessage(Base):
     __tablename__ = 'media_messages'
     id = Column(Integer, primary_key=True, autoincrement=True)
@@ -135,6 +171,8 @@ CREATE TABLE IF NOT EXISTS scheduled_tasks (
                 interval_value INTEGER,
                 interval_unit TEXT
                 '''
+
+
 class ScheduledTasks(Base):
     __tablename__ = 'scheduled_tasks'
     id = Column(Integer, primary_key=True, autoincrement=True)
@@ -146,6 +184,8 @@ class ScheduledTasks(Base):
     weekday = Column(Integer, nullable=True)
     interval_value = Column(Integer, nullable=True)
     interval_unit = Column(VARCHAR(50), nullable=True)
+    status = Column(Integer, nullable=True)
+    account_id = Column(Integer, ForeignKey('wechat_accounts.id'))
 
     # Convert the object to a dictionary
     def to_dict(self):
@@ -158,12 +198,83 @@ class ScheduledTasks(Base):
             'minute': self.minute,
             'weekday': self.weekday,
             'interval_value': self.interval_value,
-            'interval_unit': self.interval_unit
+            'interval_unit': self.interval_unit,
+            'status': self.status,
         }
 
 
-def insert_wechat_data(json_data, id):
 
+engine = create_engine('sqlite:///app.db')
+Base.metadata.create_all(engine)
+
+Session_sql = sessionmaker(bind=engine)
+db_session = Session_sql()
+
+def insert_wechat_data(json_data, account_id):
+    group_data_list = []
+    member_data_list = []
+
+    for group_data in json_data.values():
+        # 检查是否包含有效的群组ID
+        if "chatRoomId" not in group_data:
+            continue
+
+        # 尝试查询是否已存在群组信息
+        group = db_session.query(WeChatGroup).filter_by(chatRoomId=group_data['chatRoomId']).first()
+        if group:
+            # 更新群组信息
+            group.name = group_data['nickName']
+            group.members_count = int(group_data['memberCount'])
+            group.bigHeadImgUrl = group_data['bigHeadImgUrl']
+            group.chatRoomOwner = group_data['chatRoomOwner']
+            group.account_id = account_id
+
+            # 删除旧的群成员
+            db_session.query(WeChatGroupMember).filter_by(chatRoomId=group.chatRoomId).delete()
+        else:
+            # 如果群组不存在，创建新的群组对象并添加到会话中
+            group = WeChatGroup(
+                chatRoomId=group_data['chatRoomId'],
+                name=group_data['nickName'],
+                members_count=int(group_data['memberCount']),
+                bigHeadImgUrl=group_data['bigHeadImgUrl'],
+                chatRoomOwner=group_data['chatRoomOwner'],
+                account_id=account_id
+            )
+            db_session.add(group)
+            db_session.flush()  # 确保 group.chatRoomId 可用于成员记录
+
+        # 准备成员数据
+        for member_data in group_data['chatRoomMembers']:
+            member_data_list.append({
+                'chatRoomId': group.chatRoomId,
+                'userName': member_data['userName'],
+                'nickName': member_data['nickName'],
+                'displayName': member_data.get('displayName', ''),
+                'inviterUserName': member_data.get('inviterUserName', ''),
+                'isAdmin': member_data['isAdmin'],
+                'sex': member_data['sex'],
+                'bigHeadImgUrl': member_data['bigHeadImgUrl']
+            })
+
+    # 使用 bulk_insert_mappings 批量插入成员数据
+    if member_data_list:
+        db_session.bulk_insert_mappings(WeChatGroupMember, member_data_list)
+
+    # 提交事务并关闭会话
+    try:
+        db_session.commit()
+    except Exception as e:
+        db_session.rollback()
+        if isinstance(e, PendingRollbackError):
+            print("检测到PendingRollbackError，事务已回滚。请检查并处理导致事务失败的原因。")
+        else:
+            raise
+    finally:
+        db_session.close()
+
+
+def insert_wechat_data11(json_data, id):
     for group_data in json_data.values():
         # Create or update the WeChat group
         if "chatRoomId" not in group_data:
@@ -183,7 +294,7 @@ def insert_wechat_data(json_data, id):
         if group.id:
             db_session.query(WeChatGroupMember).filter_by(chatRoomId=group.chatRoomId).delete()
 
-        #Add group members
+        # Add group members
         for member_data in group_data['chatRoomMembers']:
             member = WeChatGroupMember(
                 chatRoomId=group.chatRoomId,
@@ -197,7 +308,7 @@ def insert_wechat_data(json_data, id):
             )
             db_session.add(member)
 
-        group.account_id = id# Assuming user has one account for simplicity
+        group.account_id = id  # Assuming user has one account for simplicity
 
     # Commit changes and close the db_session
     try:
@@ -215,6 +326,21 @@ def insert_wechat_data(json_data, id):
 # # Drop all tables and recreate them
 # Base.metadata.drop_all(engine)
 # Base.metadata.create_all(engine)
+# Call the function with the path to your JSON file
 
 
+# 示例用法
+def update_account_end_time_sql(account_id, new_end_time):
+    session = Session_sql()  # 创建数据库会话
+    try:
+        WeChatAccount.update_end_time_sql(session, account_id, new_end_time)
+        print(f"Updated end_time for account ID {account_id} to {new_end_time}")
+    except Exception as e:
+        session.rollback()  # 回滚事务
+        print(f"Error updating end_time: {e}")
+    finally:
+        session.close()  # 关闭会话
 
+
+now = datetime.today()
+update_account_end_time_sql(1, now)
