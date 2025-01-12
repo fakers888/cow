@@ -177,7 +177,9 @@ def get_qrcode_route(account_id):
     wxbot.city = account.city
     wxbot.province = account.province
     wxbot.token = account.token
-
+    if not wxbot.auth or not wxbot.token:
+        # 如果auth或auth_account为空，返回错误信息
+        return jsonify({'error': 'auth或者token为空，请先点击初始化！'})
     # 获取原始版本的二维码
     qr_response = wxbot.get_qrcode(province=account.province, city=account.city)
     if qr_response and qr_response.get('code') == 0:
