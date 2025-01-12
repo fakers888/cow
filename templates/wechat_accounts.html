@@ -484,21 +484,37 @@ function addAccount() {
         body: JSON.stringify(data)
     })
     .then(response => response.json())
-    .then(result => {
-        if (result.status === 'success') {
-            Swal.fire({
-                title: '成功',
-                text: '账号添加成功！',
-                icon: 'success',
-                confirmButtonText: '确定'
-            }).then(() => {
-                $('#addAccountModal').modal('hide');
-                location.reload();
-            });
+    .then(response => {
+        if (response.status === 'success') {
+            $('#addAccountModal').modal('hide');
+            
+            if (response.needLogout) {
+                const redirectUrl = response.redirect; // 保存重定向URL
+                Swal.fire({
+                    title: '账号添加成功',
+                    html: response.message.replace(/\n/g, '<br>'),
+                    icon: 'success',
+                    confirmButtonText: '确定',
+                    allowOutsideClick: false
+                }).then((result) => {
+                    if (result.isConfirmed) {
+                        window.location.href = redirectUrl; // 使用保存的URL
+                    }
+                });
+            } else {
+                Swal.fire({
+                    title: '成功',
+                    text: response.message,
+                    icon: 'success',
+                    confirmButtonText: '确定'
+                }).then(() => {
+                    location.reload();
+                });
+            }
         } else {
             Swal.fire({
                 title: '错误',
-                text: '添加失败：' + result.message,
+                text: response.message,
                 icon: 'error',
                 confirmButtonText: '确定'
             });
@@ -508,7 +524,7 @@ function addAccount() {
         console.error('Error:', error);
         Swal.fire({
             title: '错误',
-            text: '添加过程中发生错误请查看控制台了解详情。',
+            text: '添加过程中发生错误，请查看控制台了解详情。',
             icon: 'error',
             confirmButtonText: '确定'
         });

@@ -68,7 +68,7 @@ def authenticate(username, password):
         # 数据库操作
         db_session.commit()  # 提交事务
     except Exception as e:
-        db_session.rollback()  # 如果��生异常，回滚事务
+        db_session.rollback()  # 如果生异常，回滚事务
         if isinstance(e, PendingRollbackError):
             logger.info("检测到PendingRollbackError，事务已回滚。请检查并处理导致事务失败的原因。")
         else:
@@ -344,15 +344,20 @@ async def relogin():
 @user_bp.route('/add_wechat_account', methods=['POST'])
 async def add_wechat_account():
     try:
-        # 尝试创建并添加新账户
         data = await request.get_json()
         db_session = Session_sql()
+        
+        # 检查当前登录用户是否是admin
+        current_user_id = session.get('user_id')
+        current_user = db_session.query(User).filter_by(id=current_user_id).first()
+        is_admin = current_user and current_user.username == 'admin'
+        
         existing_user = db_session.query(User).filter_by(username=data['auth_account']).first()
         if not existing_user:
-            # Use generate_password_hash from werkzeug.security to generate the hash
             hashed_password = generate_password_hash("123456")
             new_user = User(username=data['auth_account'], password=hashed_password, owner_wxid=data['auth_account'])
             db_session.add(new_user)
+            
         new_account = WeChatAccount(
             account_id=data['auth_account'],
             wx_id=data['auth_account'],
@@ -366,26 +371,38 @@ async def add_wechat_account():
             max_group =10
         )
 
-        # 添加操作，事务会隐式在提交或遇到异常时管理
         db_session.add(new_account)
-
-        # 显式提交事务。如果在整个try没有异常，这行会被执行
         db_session.commit()
 
-
+        if is_admin:
+            # 如果是admin添加账号，清除会话并重定向到登录页
+            session.clear()
+            return jsonify({
+                'status': 'success',
+                'message': f'账号添加成功！\n\n请使用以下信息重新登录：\n用户名：{data["auth_account"]}\n密码：123456',
+                'redirect': url_for('user.login'),
+                'needLogout': True
+            })
+        else:
+            # 如果不是admin，只返回成功消息
+            return jsonify({
+                'status': 'success',
+                'message': '账号添加成功！',
+                'needLogout': False
+            })
 
     except Exception as e:
-        # 捕获所有其他异常
         logger.error(f'An error occurred while adding account: {e}')
-        db_session.rollback()  # 确保事务回滚
-        return jsonify({'status': 'error', 'message': '添加账号时发生未知错误', 'details': str(e)})
+        db_session.rollback()
+        return jsonify({
+            'status': 'error', 
+            'message': '添加账号时发生未知错误', 
+            'details': str(e)
+        })
 
     finally:
-        # 无论事务是否成功，都确保session关闭
         db_session.close()
 
-    # 如果没有异常，则操作成功
-    return jsonify({'status': 'success', 'message': '账号添加成功'})
 
 @user_bp.route('/update_wechat_account', methods=['POST'])
 async def update_wechat_account():
@@ -688,7 +705,7 @@ async def check_qr_status():
 
 @user_bp.route('/complete_login', methods=['POST'])
 async def complete_login():
-    """���理登录成功后的操作"""
+    """理登录成功后的操作"""
     data = await request.get_json()
     account_id = data.get('account_id')
     
