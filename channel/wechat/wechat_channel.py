@@ -31,136 +31,151 @@ class WechatChannel(ChatChannel):
         self.receivedMsgs = ExpiredDict(60 * 60)
         self.auto_login_times = 0
         self.bot=iPadWx()
-        self.init_load()  # 确保初始化代码在实例创建时执行
+        if self.bot.is_login:
+            self.init_load()  # 确保初始化代码在实例创建时执行
 
     def init_load(self):
         '''
         初始化加载
         '''
-        #bot_info = conf().get("bot_info")
-        #user_info = conf().get("user_info")
+        if not self.bot.is_login or not self.bot.wx_id:
+            logger.error("微信未登录或未获取到wx_id，无法初始化配置")
+            return False
+
+        # 获取机器人信息
         time.sleep(random.randint(0,4))
         bot_info = self.bot.get_robot_info()
         if bot_info:
-            if bot_info['code']==9001:
+            if bot_info['code'] == 9001:
                 time.sleep(random.randint(0, 4))
                 bot_info = self.bot.get_robot_info()
+            if bot_info['code'] != 0:
+                logger.error(f"获取机器人信息失败: {bot_info}")
+                return False
 
+        # 获取用户信息
         time.sleep(2)
         user_info = self.bot.get_user_info()
-        if user_info:
-            if user_info['code']==5001:
-                logger.error(user_info)
-                return False
-            if user_info['code']==9001:
-                time.sleep(random.randint(0, 4))
-                bot_info = self.bot.get_user_info()
-            # {'message': 'success', 'code': 0, 'data': {'robot': 'Cxiaoxin321', 'id': 'wxid_6q3ar4xb7m1922', 'province': '', 'city': '', 'pro_code': '', 'city_code': '', 'status': 1, 'nickname': '帅哥-）', 'expiry_date': '2024-08-26 09:28:49'}, 'request_id': '355c9992-d9d6-435d-b7d8-0b1459278c7d'}
-            # {'message': 'success', 'code': 0, 'data': {'admin_phone_number': '17612873959', 'admin_name': '周星星', 'push_needed': False, 'message_types_to_filter': ['7001', '7005', '8001', '8002', '8003', '8004', '8005', '9001', '9002', '9003'], 'whitelisted_group_ids': ['49670972421@chatroom', '26516713149@chatroom'], 'robot_wechat_id': '', 'admin_wechat_id': '', 'callback_url': 'http://www.hdgame.top:5711/chat', 'robot_expiration_date': '2024-08-26 09:28:49', 'last_login': '2024-05-28 00:59:07'}, 'request_id': '4f517052-336e-4526-86e8-4ef057cc0560'}
-            #{'robot_wechat_id': '', 'admin_wechat_id': '', 'push_needed': True, 'admin_phone_number': '17612873959', 'whitelisted_group_ids': ['46222487326@chatroom', '49725772877@chatroom', '44764019668@chatroom', '51618114532@chatroom', '49839968445@chatroom'], 'admin_name': '周星星', 'message_types_to_filter': ['7001', '7005', '8001', '8002', '8003', '8004', '8005', '8006', '8007', '8008', '9001', '9002', '9003', '9004', '9005', '9006', '9007', '9008', '7099'], 'callback_url': 'http://www.hdgame.top:5731/chat', 'last_login': '2024-09-01 11:51:06', 'max_group': '10', 'robot_expiration_date': '2024-08-26 09:28:49'}, 'request_id': 'd6a9ffb7-4cf7-4b0a-af42-cfb8206d1d5f'}
-            max_group = int(user_info['data']['max_group'])
-            whitelisted_group_ids = user_info['data']['whitelisted_group_ids']
-            self.name = bot_info['data']['nickname']
-            self.user_id = bot_info['data']['id']
-            #robot_expiration_date = bot_info['data']['robot_expiration_date']
-            logger.info("Wechat login success, user_id: {}, nickname: {},到期时间{},回调开关{},地址{},监听群{}".format(self.user_id, self.name,
-                        bot_info['data']['expiry_date'],user_info['data']['push_needed'],user_info['data']['callback_url'],whitelisted_group_ids))
-            expiry_date  =bot_info['data']['expiry_date']
-            if expiry_date < datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"):
-                logger.error("机器人到期时间{}!!".format(expiry_date))
-            # 检查回调URL
-            config_callback_url = conf().get("http_hook")
-            current_callback_url = user_info['data']['callback_url']
-            if config_callback_url != "" and current_callback_url != config_callback_url:
-                logger.error(f"机器人callback 不正确,以本地配置为准：{config_callback_url}!!")
-                self.bot.set_callback_url(config_callback_url)
+        if not user_info:
+            logger.error("获取用户信息失败")
+            return False
+            
+        if user_info['code'] == 5001:
+            logger.error(user_info)
+            return False
+        if user_info['code'] == 9001:
+            time.sleep(random.randint(0, 4))
+            user_info = self.bot.get_user_info()
+        if user_info['code'] != 0:
+            logger.error(f"获取用户信息失败: {user_info}")
+            return False
+
+        # 设置基本信息
+        max_group = int(user_info['data'].get('max_group', 10))
+        whitelisted_group_ids = user_info['data'].get('whitelisted_group_ids', [])
+        self.name = bot_info['data'].get('nickname', "")
+        message_types_to_filter = user_info['data']['message_types_to_filter']
+        self.user_id = bot_info['data']['id']
+
+        # 检查机器人到期时间
+        expiry_date = bot_info['data']['expiry_date']
+        if expiry_date < datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"):
+            logger.error(f"机器人到期时间{expiry_date}!!")
+            return False
+
+        # 检查回调URL
+        config_callback_url = conf().get("http_hook")
+        current_callback_url = user_info['data']['callback_url']
+        if config_callback_url != "" and current_callback_url != config_callback_url:
+            logger.error(f"机器人callback 不正确{config_callback_url}!!")
+            self.bot.set_callback_url(config_callback_url)
+
+        # 更新群信息
         update_group = True
         if update_group:
-            groups = self.bot.get_room_list()
-            # 查询新的群列表，，检查群是否加载完整，并将群加入到监听列表中。，做多10个群，
-            groups_monitor = user_info['data']['whitelisted_group_ids']
+            groups = self.bot.get_device_room_list()
+            if groups['code'] != 0:
+                logger.error("获取设备群列表失败")
+                return False
 
-            #如果群还不在本地列表中，加载进来
-            need_save=False
-            if groups['code']==0:
-                for room_id in groups['data']:
+            groups2 = self.bot.get_room_list()
+            if groups2['code'] == 0:
+                # 合并群列表并去重
+                merged_groups = set(groups["data"] + groups2["data"])
+
+                # 更新群信息
+                need_save = False
+                for room_id in merged_groups:
                     if room_id not in self.bot.shared_wx_contact_list:
                         logger.info(f"群还未查询过{room_id}")
                         room_info = self.bot.get_room_info(room_id)
-                        iPadWx.shared_wx_contact_list[room_id] = room_info['data']
-                        members = self.bot.get_chatroom_memberlist(room_id)
-                        iPadWx.shared_wx_contact_list[room_id]['chatRoomMembers'] = members['data']
-                        logger.info(f"群还未查询过{room_id},名称{room_info['data']['nickName']}")
-                        need_save=True
-                        time.sleep(2)
-                    else:
-                        pass
-                        # room_info = self.bot.get_room_info(room_id)
-                        # time.sleep(2)
-                        # #print(room_info)
-                        # chatroom_name = room_info['data']['nickName']
-                        # if iPadWx.shared_wx_contact_list[room_id]['nickName']!=chatroom_name:
-                        #     need_save =True
-                        #     iPadWx.shared_wx_contact_list[room_id]['nickName'] = chatroom_name
-
-
+                        if room_info['code'] == 0:
+                            iPadWx.shared_wx_contact_list[room_id] = room_info['data']
+                            members = self.bot.get_chatroom_memberlist(room_id)
+                            if members['code'] == 0:
+                                iPadWx.shared_wx_contact_list[room_id]['chatRoomMembers'] = members['data']
+                                logger.info(f"群还未查询过{room_id},名称{room_info['data']['nickName']}")
+                                need_save = True
+                                time.sleep(2)
 
                 if need_save:
                     self.bot.save_contact()
 
-
+                # 处理需要监控的群
                 group_need_monitors = []
-                group_name_white_list=conf().get("group_name_white_list")
+                group_name_white_list = conf().get("group_name_white_list")
+                
+                # 根据群名匹配需要监控的群
                 for group_need_monitor in group_name_white_list:
-                    for key,item in iPadWx.shared_wx_contact_list.items():
-                        if item and key.endswith("@chatroom"):
-                            if item['chatRoomId']!="" and item['nickName']!="" :
-                                if item['nickName'].lower() ==group_need_monitor.lower():
-                                    group_need_monitors.append(key)
-                                    if len(group_need_monitors) > max_group:
-                                        logger.info(f"群监控数量超过{max_group}个，退出")
-                                        break
-                                    break
+                    for key, item in iPadWx.shared_wx_contact_list.items():
+                        if (item and key.endswith("@chatroom") and 
+                            item['chatRoomId'] != "" and item['nickName'] != "" and
+                            item['nickName'].lower() == group_need_monitor.lower()):
+                            if len(group_need_monitors) >= max_group:
+                                logger.info(f"群监控数量超过{max_group}个,{group_need_monitor}，退出")
+                                break
+                            else:
+                                group_need_monitors.append(key)
 
-                # 根据ID来监控，防止群名不匹配
-                group_name_white_roomid_list = conf().get("group_name_white_roomid_list",{})
-                for group_id ,group_name in group_name_white_roomid_list.items():
-
+                # 根据群ID匹配需要监控的群
+                group_name_white_roomid_list = conf().get("group_name_white_roomid_list", {})
+                for group_id, group_name in group_name_white_roomid_list.items():
                     if group_id not in group_need_monitors:
                         if len(group_need_monitors) >= max_group:
                             logger.info(f"群监控数量超过{max_group}个，退出")
                             break
                         logger.debug(f"{group_id},{group_name}已加入监控")
                         group_need_monitors.append(group_id)
+
+                # 处理ALL_GROUP配置
                 if "ALL_GROUP" in group_name_white_list:
                     for room_id in groups['data']:
                         if room_id not in group_need_monitors and len(group_need_monitors) < max_group:
                             group_need_monitors.append(room_id)
-                        if len(group_need_monitors)>=max_group:
+                        if len(group_need_monitors) >= max_group:
                             break
 
-                # for room_id in groups['data']:
-                #     if room_id not in group_need_monitors and len(group_need_monitors)<10:
-                #         group_need_monitors.append(room_id)
-
+                # 输出监控信息
                 not_monitor = set(groups['data']) - set(group_need_monitors)
                 logger.info(f"当前群{groups['data']}")
                 logger.info(f"需要监控的群{group_need_monitors}")
                 logger.info(f"不需要监控的群{not_monitor}")
+
+                # 输出详细群信息
                 for room_id in list(not_monitor):
                     logger.info(f"还未监控的群{room_id},群名{iPadWx.shared_wx_contact_list[room_id]['nickName']}")
-
                 for room_id in list(group_need_monitors):
                     logger.info(f"监控的群{room_id},群名{iPadWx.shared_wx_contact_list[room_id]['nickName']}")
 
-
-                #self.bot.filter_msg()
+                # 设置群监听
                 if group_need_monitors:
                     payload = {"group": group_need_monitors}
                     ret = self.bot.group_listen(payload=payload)
                     logger.info(f"group_listen ret:{ret}")
                 else:
                     logger.info(f"没有群需要监控{group_need_monitors}")
+
+        return True
 
     def startup(self):
         pass
@@ -233,21 +248,30 @@ class WechatChannel(ChatChannel):
     def handle_group(self, cmsg: ChatMessage):
         #if cmsg.is_at and self.user_id in cmsg.at_list:
         if cmsg.ctype == ContextType.VOICE:
-            if conf().get("group_speech_recognition") != True:
-                return
             logger.debug("[WX]receive voice for group msg: {}".format(cmsg.content))
+            if cmsg.is_group:
+                if conf().get("group_speech_recognition") != True:
+                    logger.debug("[WX]group speech recognition is disabled")
+                    return
+            else:
+                if conf().get("speech_recognition") != True:
+                    logger.debug("[WX]speech recognition is disabled")
+                    return
+            logger.debug("[WX]receive voice for group msg: {}".format(cmsg.content))
+
         elif cmsg.ctype == ContextType.IMAGE:
             logger.debug("[WX]receive image for group msg: {}".format(cmsg.content))
         elif cmsg.ctype in [ContextType.JOIN_GROUP, ContextType.PATPAT, ContextType.ACCEPT_FRIEND, ContextType.EXIT_GROUP]:
             logger.debug("[WX]receive note msg: {}".format(cmsg.content))
         elif cmsg.ctype == ContextType.TEXT:
-            logger.debug("[WX]receive msg: {}, cmsg={}".format(json.dumps(cmsg._rawmsg, ensure_ascii=False), cmsg))
+            #logger.debug("[WX]receive msg: {}, cmsg={}".format(json.dumps(cmsg._rawmsg, ensure_ascii=False), cmsg))
             pass
         elif cmsg.ctype == ContextType.FILE:
             logger.debug(f"[WX]receive attachment msg, file_name={cmsg.content}")
         elif cmsg.ctype == ContextType.XML:
+            pass
             #logger.debug(f"[WX]receive XML msg")
-            logger.debug("[WX]receive XML msg for group: {}".format(cmsg.content))
+            #logger.debug("[WX]receive XML msg for group: {}".format(cmsg.content))
 
         else:
             logger.debug("[WX]receive msg: {}".format(cmsg.content))
@@ -296,7 +320,7 @@ class WechatChannel(ChatChannel):
             refer_name = cmsg.from_user_nickname
             receiver = context["receiver"]
             from_user_id = context["msg"].from_user_id
-            if reply.type == ReplyType.TEXT:
+            if reply.type == ReplyType.TEXT  or reply.type == ReplyType.ERROR or reply.type == ReplyType.INFO:
                 content = reply.content
                 if len(content)>max_length:
                     segments = content.split('\n')
@@ -342,7 +366,7 @@ class WechatChannel(ChatChannel):
 
                 else:
                     current_message = content
-                if current_message:
+                if current_message or (current_message== "" and (reply.ext == 1 or reply.ext == 2)):
                     #bot.send_message(to_id=receiver, text=current_message)
                     if reply.ext == 1:  # @回复
                         if "@" not in current_message:
@@ -374,7 +398,7 @@ class WechatChannel(ChatChannel):
                     time.sleep(2.0)
         receiver = context["receiver"]
         if reply.type == ReplyType.TEXT:
-            #修改回复的方法，根据reply.ext字段判断回复方式
+            #修改回复的方法，根据reply.ext字段判断回复方式reply.type== ReplyType.ERRORorreply.type==
             # 1 真艾特回复 2 假艾特回复 3 不艾特回复
             # 4 引用回复不艾特 5 引用回复假艾特 6 引用回复真艾特 无法实现
 
@@ -383,7 +407,9 @@ class WechatChannel(ChatChannel):
             #self.bot.send_message(to_id=receiver,text=reply.content)
             #logger.info("[WX] sendMsg={}, receiver={}".format(reply, receiver))
         elif reply.type == ReplyType.ERROR or reply.type == ReplyType.INFO:
-            self.bot.send_message(to_id=receiver,text=reply.content)
+            #self.bot.send_message(to_id=receiver,text=reply.content)
+            send_long_text(self.bot, context, reply)
+
             logger.info("[WX] sendMsg={}, receiver={}".format(reply, receiver))
         elif reply.type == ReplyType.VOICE:
             #itchat.send_file(reply.content, toUserName=receiver)
