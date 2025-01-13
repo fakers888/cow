@@ -60,10 +60,11 @@ cp config-template.json config.json
   "auth": "login接口获取的auth",
   "http_hook": "http://你的服务器IP:端口/chat",
   "base_url": "远端IPAD服务器地址",
+  "wechatipad_port":"你的端口号",
   "channel_type": "wx",
   "AI_reply": true,
   "group_name_white_list": ["测试群1", "测试群2"],
-  "group_chat_prefix": ["@bot", "bot"],
+  "group_chat_prefix": [">", "bot"],
   "single_chat_prefix": ["bot", "@bot"]
 }
 ```
@@ -139,7 +140,7 @@ supervisorctl start chatbot
 
 ### 3.3 配置微信号
 
-1. 访问后台管理界面：`http://你的服务器IP:n你的端口/login`  注意防火墙放开端口！！
+1. 访问后台管理界面：`http://你的服务器IP:你的端口/login`  注意防火墙放开端口！！
    - 默认用户名：admin
    - 默认密码：123456
 
@@ -156,6 +157,7 @@ supervisorctl start chatbot
    - 点击"扫码"按钮
    - 使用微信扫描二维码完成登录。注意看省份是否正确，确保同省
    - 点击"开启"按钮设置回调地址
+   - 点击 "编辑" 可以修改
 
 5. 重启程序：
    - 如果使用 Supervisor：
