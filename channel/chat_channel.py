@@ -141,7 +141,10 @@ class ChatChannel(Channel):
                         flag = True
                         if match_prefix:
                             content = content.replace(match_prefix, "", 1).strip()
-                    if context["msg"].is_at:# modify 2024-08-23 and self.user_id in context['msg'].at_list : #at 的是机器人，并且是at消息
+                    if context["msg"].is_at and context["msg"].to_user_id in context['msg'].at_list:
+                        # at 的是机器人，并且是at消息 不处理at其他人的消息
+
+                    #if context["msg"].is_at:# modify 2024-08-23 and self.user_id in context['msg'].at_list : #at 的是机器人，并且是at消息
                         nick_name = context["msg"].actual_user_nickname
                         if nick_name and nick_name in nick_name_black_list:
                             # 黑名单过滤
