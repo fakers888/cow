@@ -100,6 +100,10 @@
                         <input type="text" class="form-control" id="auth_account" name="auth_account" required>
                     </div>
                     <div class="mb-3">
+                        <label for="login_password" class="form-label">登录密码(不填则默认123456)</label>
+                        <input type="password" class="form-control" id="login_password" name="login_password">
+                    </div>
+                    <div class="mb-3">
                         <label for="auth_password" class="form-label">密码(获取的加密后的密码)</label>
                         <input type="text" class="form-control" id="auth_password" name="auth_password" required>
                     </div>
@@ -136,6 +140,10 @@
             <div class="modal-body">
                 <form id="updateAccountForm">
                     <input type="hidden" id="update_account_id" name="account_id">
+                    <div class="mb-3">
+                        <label for="update_login_password" class="form-label">新登录密码(不修改请留空)</label>
+                        <input type="password" class="form-control" id="update_login_password" name="login_password">
+                    </div>
                     <div class="mb-3">
                         <label for="update_province" class="form-label">省份</label>
                         <input type="text" class="form-control" id="update_province" name="province">

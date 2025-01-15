@@ -354,39 +354,45 @@ async def add_wechat_account():
         current_user = db_session.query(User).filter_by(id=current_user_id).first()
         is_admin = current_user and current_user.username == 'admin'
         
+        # 获取登录密码,如果没有提供则使用默认密码
+        login_password = data.get('login_password', '123456')
+        
         existing_user = db_session.query(User).filter_by(username=data['auth_account']).first()
         if not existing_user:
-            hashed_password = generate_password_hash("123456")
-            new_user = User(username=data['auth_account'], password=hashed_password, owner_wxid=data['auth_account'])
+            # 创建新用户时使用提供的登录密码
+            hashed_password = generate_password_hash(login_password)
+            new_user = User(
+                username=data['auth_account'], 
+                password=hashed_password, 
+                owner_wxid=data['auth_account']
+            )
             db_session.add(new_user)
             
         new_account = WeChatAccount(
             account_id=data['auth_account'],
             wx_id=data['auth_account'],
-            owner_wxid = data['auth_account'],
+            owner_wxid=data['auth_account'],
             auth_account=data['auth_account'],
             auth_password=data['auth_password'],
             province=data['province'],
             city=data['city'],
             callback_url=data['callback_url'],
             account_type=1,
-            max_group =10
+            max_group=10
         )
 
         db_session.add(new_account)
         db_session.commit()
 
         if is_admin:
-            # 如果是admin添加账号，清除会话并重定向到登录页
             session.clear()
             return jsonify({
                 'status': 'success',
-                'message': f'账号添加成功！\n\n请使用以下信息重新登录：\n用户名：{data["auth_account"]}\n密码：123456',
+                'message': f'账号添加成功！\n\n请使用以下信息重新登录：\n用户名：{data["auth_account"]}\n密码：{login_password}',
                 'redirect': url_for('user.login'),
                 'needLogout': True
             })
         else:
-            # 如果不是admin，只返回成功消息
             return jsonify({
                 'status': 'success',
                 'message': '账号添加成功！',
@@ -401,7 +407,6 @@ async def add_wechat_account():
             'message': '添加账号时发生未知错误', 
             'details': str(e)
         })
-
     finally:
         db_session.close()
 
@@ -411,15 +416,30 @@ async def update_wechat_account():
     try:
         data = await request.get_json()
         db_session = Session_sql()
+        
+        # 更新微信账号信息
         account = db_session.query(WeChatAccount).filter_by(account_id=data['account_id']).first()
         if account:
             account.province = data.get('province', account.province)
             account.city = data.get('city', account.city)
             account.callback_url = data.get('callback_url', account.callback_url)
+            
+            # 如果提供了新的登录密码,同时更新用户表
+            new_login_password = data.get('login_password')
+            if new_login_password:
+                user = db_session.query(User).filter_by(username=account.auth_account).first()
+                if user:
+                    user.password = generate_password_hash(new_login_password)
+            
             db_session.commit()
-            return jsonify({'status': 'success', 'message': '账号更新成功'})
+            return jsonify({
+                'status': 'success', 
+                'message': '账号信息更新成功' + 
+                          ('，登录密码已更新' if new_login_password else '')
+            })
         else:
             return jsonify({'status': 'error', 'message': '未找到对应的账号'})
+            
     except Exception as e:
         logger.error(f'An error occurred while updating account: {e}')
         db_session.rollback()
