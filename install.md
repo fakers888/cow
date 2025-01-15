@@ -16,8 +16,8 @@
 ### 2.1 克隆项目
 
 ```bash
-git clone https://github.com/azz212/chatgpt-on-wechat-ipad
-cd chatgpt-on-wechat-ipad
+git clone https://github.com/fakers888/cow
+cd cow
 ```
 
 ### 2.2 创建并激活虚拟环境
@@ -60,10 +60,11 @@ cp config-template.json config.json
   "auth": "login接口获取的auth",
   "http_hook": "http://你的服务器IP:端口/chat",
   "base_url": "远端IPAD服务器地址",
+  "wechatipad_port":"你的端口号",
   "channel_type": "wx",
   "AI_reply": true,
   "group_name_white_list": ["测试群1", "测试群2"],
-  "group_chat_prefix": ["@bot", "bot"],
+  "group_chat_prefix": [">", "bot"],
   "single_chat_prefix": ["bot", "@bot"]
 }
 ```
@@ -139,15 +140,16 @@ supervisorctl start chatbot
 
 ### 3.3 配置微信号
 
-1. 访问后台管理界面：`http://你的服务器IP:5731/login`
+1. 访问后台管理界面：`http://你的服务器IP:你的端口/login`  注意防火墙放开端口！！
    - 默认用户名：admin
    - 默认密码：123456
 
 2. 添加微信号：
    - 点击"新增"按钮
    - 填写获取的用户名和密码
-   - 填写省份和城市信息（按实际微信注册地填写），直辖市填写省份，城市留空
+   - 填写省份和城市信息（按实际微信注册地填写），直辖市填写省份，城市留空。例如 山西省 太原市
    - 填写回调地址（确保可以从外网访问）
+   - 添加后提示你用新账号登录
 3. 使用你的手机号和密码123456登录！！
 4. 初始化和登录：
    - 选中刚添加的账号
@@ -155,6 +157,7 @@ supervisorctl start chatbot
    - 点击"扫码"按钮
    - 使用微信扫描二维码完成登录。注意看省份是否正确，确保同省
    - 点击"开启"按钮设置回调地址
+   - 点击 "编辑" 可以修改
 
 5. 重启程序：
    - 如果使用 Supervisor：
@@ -169,15 +172,15 @@ supervisorctl start chatbot
      ```
 检查是否获取到微信信息，并初始化完成。
 ### 3.4 测试
-
+0. 设置私聊和群聊的触发词
 1. 私聊测试：
    - 用另一个微信号私聊机器人
    - 发送 "bot 你好" 测试回复
 
 2. 群聊测试：
    - 将机器人拉入群聊。
-   - 群聊保存到通讯录
-   - 将群名称保存到白名单
+   - 群聊保存到通讯录！！！！
+   - 将群名称保存到配置中的白名单！！！！
    - 再次重启机器人
    - 在群里 @机器人 测试回复
 ### 3.5 二次登录
@@ -185,9 +188,11 @@ supervisorctl start chatbot
 ## 常见问题
 
 1. 如果遇到依赖安装失败，可以尝试：
-   - 更新 pip：`pip install --upgrade pip`
+   - 用上面的方法进入cd cow目录
+   - 使用 source venv/bin/activate 激活虚拟环境
+   - 更新 pip3：`pip install --upgrade pip`
    - 单独安装失败的依赖
-   - 检查 Python 版本是否兼容
+     pip3 install 缺少的库文件
 
 2. 如果遇到缺少库文件错误：
    ```bash
@@ -228,8 +233,8 @@ supervisorctl start chatbot
      ```
 
 4. 如果扫码登录失败：
-   - 确认 token 是否正确
-   - 检查网络连接
+   - 确认 token 和auth 是否正确
+   - 检查省份和城市是否正确 省 和 市 不能省略
    - 确认微信号是否被限制登录
    - 检查日志文件：
      ```bash
